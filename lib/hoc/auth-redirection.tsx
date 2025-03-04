@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import useAuthSessionContext from "../context/auth-session-context";
-import { useRouter } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 
 const ROUTE_CONFIG = {
@@ -16,31 +15,44 @@ const ROUTE_CONFIG = {
   },
 } as const;
 
+const PUBLIC_ROUTES = ["/login", "/signup"];
+
 const AuthRedirection = ({ children }: { children: React.ReactNode }) => {
   const { status, role } = useAuthSessionContext();
-  const router = useRouter();
+  const [isReloading, setIsReloading] = useState(false);
 
   useEffect(() => {
     const currentPath = window.location.pathname;
 
     if (status === "unauthenticated") {
-      const isProtectedRoute = Object.values(ROUTE_CONFIG).some((config) =>
-        config.allowedRoutes.some((route) => currentPath.includes(route))
-      );
-      if (isProtectedRoute) {
-        router.push("/login");
+      if (!PUBLIC_ROUTES.includes(currentPath)) {
+        window.location.href = "/login";
       }
     } else if (status === "authenticated" && role) {
       const userConfig = ROUTE_CONFIG[role as keyof typeof ROUTE_CONFIG];
       if (
         !userConfig.allowedRoutes.some((route) => currentPath.includes(route))
       ) {
-        router.push(userConfig.defaultRoute);
+        window.location.href = userConfig.defaultRoute;
       }
     }
-  }, [status, role, router]);
+  }, [status, role]);
 
-  if (status === "loading") {
+  useEffect(() => {
+    setIsReloading(false);
+
+    const handleBeforeUnload = () => {
+      setIsReloading(true);
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
+
+  if (status === "loading" || isReloading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
